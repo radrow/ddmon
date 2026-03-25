@@ -21,17 +21,17 @@ defmodule Ddmon.TestServer do
   end
 
 
-  def handle_call(:'$get_child', _from, state) do
+  def handle_call(:"$get_child", _from, state) do
     # This is to make the scenario script less confused when monitoring is
     # switched off
     {:reply, self(), state}
   end
 
-  def handle_call(:'$get_workers', _from, state = {:route, free, busy}) do
+  def handle_call(:"$get_workers", _from, state = {:route, free, busy}) do
     {:reply, free ++ busy, state}
   end
 
-  def handle_call(:'$get_workers', _from, state = {:work, _}) do
+  def handle_call(:"$get_workers", _from, state = {:work, _}) do
     {:reply, [], state}
   end
 

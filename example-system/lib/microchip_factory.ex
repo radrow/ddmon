@@ -8,12 +8,12 @@ defmodule MicrochipFactory do
   @doc"""
   Simple example with two services
   """
-  def start_two(monitored \\ false) do
+  def start_two() do
     # Starting namespace registry
     Registry.start_link(keys: :unique, name: :factory)
 
     # Starting producers
-    {:ok, _prod1} = MicrochipFactory.Producer.start_link({:via, Registry, {:factory, :prod1}}, 3, [])
+    {:ok, prod1} = MicrochipFactory.Producer.start_link({:via, Registry, {:factory, :prod1}}, 3, [])
     {:ok, _prod2} = MicrochipFactory.Producer.start_link({:via, Registry, {:factory, :prod2}}, 5, [])
 
     # Starting inspectors
@@ -30,14 +30,14 @@ defmodule MicrochipFactory do
     calls = [{{:via, Registry, {:factory, :prod1}}, {:via, Registry, {:factory, :insp2}}},
              {{:via, Registry, {:factory, :prod2}}, {:via, Registry, {:factory, :insp1}}}
             ]
-    do_calls(calls, monitored, 1000)
+    do_calls(calls, monitored?(prod1), 1000)
   end
 
 
   @doc """
   Complex example with many producers and a few inspectors
   """
-  def start_many(monitored \\ false) do
+  def start_many() do
     # How long a single cascade of calls should be
     session_size = 30
     # At what point sessions should clash with others
@@ -47,7 +47,7 @@ defmodule MicrochipFactory do
     Registry.start_link(keys: :unique, name: :factory)
 
     # Starting producers in three sessions
-    _prods = for idx <- 0..session_size, sess <- [:a, :b, :c], into: %{} do
+    prods = for idx <- 0..session_size, sess <- [:a, :b, :c], into: %{} do
       name = {:via, Registry, {:factory, {:prod, sess, idx}}}
 
       # All producers (except the last one) call the next producer in order
@@ -60,6 +60,8 @@ defmodule MicrochipFactory do
       prod = MicrochipFactory.Producer.start_link(name, 21, components)
       {{sess, idx}, prod}
     end
+
+    {:ok, first_prod_pid} = prods[{:a, 0}]
 
     # Starting inspectors in three sessions
     _insps = for sess <- [:a, :b, :c] do
@@ -87,13 +89,20 @@ defmodule MicrochipFactory do
        {:via, Registry, {:factory, {:insp, sess}}}
       }
     end
-    do_calls(calls, monitored, 4000)
+    do_calls(calls, monitored?(first_prod_pid), 4000)
   end
 
 
   ### ==========================================================================
   ### Printing and initiating
   ### ==========================================================================
+
+  defp monitored?(pid) do
+    case :sys.get_status(pid) do
+      {:status, _, {:module, :gen_statem}, _} -> true
+      _ -> false
+    end
+  end
 
   defp do_calls(calls, monitored, timeout) do
     # Performs a sequence of initial calls to the system. Calls are sent in
